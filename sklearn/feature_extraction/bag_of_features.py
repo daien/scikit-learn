@@ -113,7 +113,9 @@ class BagOfFeatures(BaseEstimator):
         b = np.bincount(labels, minlength=self.voc_size).squeeze().astype(np.float)
         # normalize it if requested
         if self.normalize:
-            b /= b.sum()
+            bs = b.sum()
+            if bs > 0:
+                b /= bs
         # transform it to a sparse vector if requested
         if self.sparse_out:
             b = csr_matrix(b)
