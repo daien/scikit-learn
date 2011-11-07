@@ -110,7 +110,7 @@ class BagOfFeatures(BaseEstimator):
         # assign each feature to its closest visual word
         labels = self.predict(X)
         # build the histogram
-        b = np.bincount(labels, minlength=self.voc_size).squeeze()
+        b = np.bincount(labels, minlength=self.voc_size).squeeze().astype(np.float)
         # normalize it if requested
         if self.normalize:
             b /= b.sum()
