@@ -142,7 +142,11 @@ def fit_ovo_binary(estimator, X, y, i, j, **fit_params):
     y[y == i] = -1
     y[y == j] = 1
     ind = np.arange(len(X))
-    return fit_binary(estimator, X[ind[cond]], y, **fit_params)
+    if isinstance(X, list):
+        subX = [X[sel_i] for sel_i in ind[cond]]
+    else:
+        subX = X[ind[cond]]
+    return fit_binary(estimator, subX, y, **fit_params)
 
 
 def fit_ovo(estimator, X, y, **fit_params):
@@ -157,7 +161,7 @@ def fit_ovo(estimator, X, y, **fit_params):
 
 def predict_ovo(estimators, classes, X):
     """Make predictions using the one-vs-one strategy."""
-    n_samples = X.shape[0]
+    n_samples = len(X)
     n_classes = classes.shape[0]
     votes = np.zeros((n_samples, n_classes))
 
@@ -293,7 +297,7 @@ class OneVsOneClassifier(BaseEstimator, ClassifierMixin):
             return predict_ovo(self.estimators_, self.classes_, X)
 
 
-def fit_ecoc(estimator, X, y, code_size=1.5, random_state=None):
+def fit_ecoc(estimator, X, y, code_size=1.5, random_state=None, **fit_params):
     """
     Fit an error-correcting output-code strategy.
 
@@ -340,9 +344,9 @@ def fit_ecoc(estimator, X, y, code_size=1.5, random_state=None):
 
     cls_idx = dict((c, i) for i, c in enumerate(classes))
 
-    Y = np.array([code_book[cls_idx[y[i]]] for i in xrange(X.shape[0])])
+    Y = np.array([code_book[cls_idx[y[i]]] for i in xrange(len(X))])
 
-    estimators = [fit_binary(estimator, X, Y[:, i])
+    estimators = [fit_binary(estimator, X, Y[:, i], **fit_params)
                                 for i in range(Y.shape[1])]
 
     return estimators, classes, code_book
@@ -419,7 +423,7 @@ class OutputCodeClassifier(BaseEstimator, ClassifierMixin):
         self.code_size = code_size
         self.random_state = random_state
 
-    def fit(self, X, y):
+    def fit(self, X, y, **fit_params):
         """Fit underlying estimators.
 
         Parameters
@@ -435,7 +439,7 @@ class OutputCodeClassifier(BaseEstimator, ClassifierMixin):
         self
         """
         self.estimators_, self.classes_, self.code_book_ = \
-            fit_ecoc(self.estimator, X, y, self.code_size, self.random_state)
+            fit_ecoc(self.estimator, X, y, self.code_size, self.random_state, **fit_params)
         return self
 
     def predict(self, X):
