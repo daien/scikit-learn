@@ -68,7 +68,8 @@ class BagOfFeatures(BaseEstimator):
         self
         """
         self.voc_model_ = MiniBatchKMeans(k=self.voc_size, init='k-means++',
-                                          max_iter=100, chunk_size=1000)
+                                          max_iter=100, chunk_size=1000,
+                                          compute_labels=False)
         self.voc_model_.fit(X)
         self.vocabulary_ = self.voc_model_.cluster_centers_
         return self
