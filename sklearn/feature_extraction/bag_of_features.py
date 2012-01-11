@@ -21,7 +21,6 @@ class BagOfFeatures(BaseEstimator):
 
     Parameters
     ----------
-
     voc_size: int, optional, default: 1000,
               vocabulary size (number of visaul words)
 
@@ -33,7 +32,6 @@ class BagOfFeatures(BaseEstimator):
 
     Methods
     -------
-
     fit(X):
         compute the vocabulary using MiniBatchKMeans
 
@@ -45,12 +43,11 @@ class BagOfFeatures(BaseEstimator):
 
     Attributes
     ----------
-
     voc_model_: MiniBatchKMeans instance,
                 the model obtained when learning the vocabulary
 
-    visual_words_: array, [n_clusters, n_features]
-        Coordinates of visual words (cluster centers)
+    vocabulary: array, [n_clusters, n_features]
+                coordinates of the cluster centers
     """
 
     def __init__(self, voc_size=1000, normalize=True, sparse_out=True):
@@ -73,7 +70,7 @@ class BagOfFeatures(BaseEstimator):
         self.voc_model_ = MiniBatchKMeans(k=self.voc_size, init='k-means++',
                                           max_iter=100, chunk_size=1000)
         self.voc_model_.fit(X)
-        self.visual_words_ = self.voc_model_.cluster_centers_
+        self.vocabulary_ = self.voc_model_.cluster_centers_
         return self
 
     def predict(self, X, y=None):
