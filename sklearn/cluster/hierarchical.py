@@ -7,7 +7,7 @@ Authors : Vincent Michel, Bertrand Thirion, Alexandre Gramfort,
           Gael Varoquaux
 License: BSD 3 clause
 """
-from heapq import heapify, heappop, heappush
+from heapq import heapify, heappop, heappush, heappushpop
 import itertools
 import warnings
 
@@ -19,7 +19,7 @@ from ..base import BaseEstimator
 from ..utils._csgraph import cs_graph_components
 from ..externals.joblib import Memory
 
-from . import _inertia
+from . import _hierarchical
 from ._feature_agglomeration import AgglomerationTransform
 
 
@@ -65,7 +65,7 @@ def ward_tree(X, connectivity=None, n_components=None, copy=True):
     n_leaves : int
         The number of leaves in the tree
     """
-    X = np.asanyarray(X)
+    X = np.asarray(X)
     n_samples, n_features = X.shape
     if X.ndim == 1:
         X = np.reshape(X, (-1, 1))
@@ -118,8 +118,8 @@ def ward_tree(X, connectivity=None, n_components=None, copy=True):
     moments[0][:n_samples] = 1
     moments[1][:n_samples] = X
     inertia = np.empty(len(coord_row), dtype=np.float)
-    _inertia.compute_ward_dist(moments[0], moments[1],
-                               coord_row, coord_col, inertia)
+    _hierarchical.compute_ward_dist(moments[0], moments[1],
+                             coord_row, coord_col, inertia)
     inertia = zip(inertia, coord_row, coord_col)
     heapify(inertia)
 
@@ -133,7 +133,6 @@ def ward_tree(X, connectivity=None, n_components=None, copy=True):
 
     # recursive merge loop
     for k in xrange(n_samples, n_nodes):
-
         # identify the merge
         while True:
             inert, i, j = heappop(inertia)
@@ -164,7 +163,7 @@ def ward_tree(X, connectivity=None, n_components=None, copy=True):
         coord_row.fill(k)
         ini = np.empty(len(coord_row), dtype=np.float)
 
-        _inertia.compute_ward_dist(moments[0], moments[1],
+        _hierarchical.compute_ward_dist(moments[0], moments[1],
                                    coord_row, coord_col, ini)
         for tupl in itertools.izip(ini, coord_row, coord_col):
             heappush(inertia, tupl)
@@ -178,36 +177,6 @@ def ward_tree(X, connectivity=None, n_components=None, copy=True):
 
 ###############################################################################
 # Functions for cutting  hierarchical clustering tree
-
-def _hc_get_descendent(ind, children, n_leaves):
-    """Function returning all the descendent leaves of a set of nodes.
-
-    Parameters
-    ----------
-    ind : list of int
-        A list that indicates the nodes for which we want the descendents.
-
-    children : list of pairs. Length of n_nodes
-        List of the children of each nodes.
-        This is not defined for leaves.
-
-    n_leaves : int
-        Number of leaves.
-
-    Return
-    ------
-    descendent : list of int
-    """
-    descendent = []
-    while len(ind) != 0:
-        i = ind.pop()
-        if i < n_leaves:
-            descendent.append(i)
-        else:
-            ci = children[i - n_leaves]
-            ind.extend((ci[0], ci[1]))
-    return descendent
-
 
 def _hc_cut(n_clusters, children, n_leaves):
     """Function cutting the ward tree for a given number of clusters.
@@ -224,20 +193,33 @@ def _hc_cut(n_clusters, children, n_leaves):
     n_leaves : int
         Number of leaves of the tree.
 
-    Return
-    ------
+    Returns
+    -------
     labels : array [n_points]
         cluster labels for each point
 
     """
-    nodes = [np.max(children[-1]) + 1]
+    if n_clusters > n_leaves:
+        raise ValueError('Cannot extract more clusters than samples: '
+            '%s clusters where given for a tree with %s leaves.'
+            % (n_clusters, n_leaves))
+    # In this function, we store nodes as a heap to avoid recomputing
+    # the max of the nodes: the first element is always the smallest
+    # We use negated indices as heaps work on smallest elements, and we
+    # are interested in largest elements
+    # children[-1] is the root of the tree
+    nodes = [-(max(children[-1]) + 1)]
     for i in range(n_clusters - 1):
-        nodes.extend(children[np.max(nodes) - n_leaves])
-        nodes.remove(np.max(nodes))
-    labels = np.zeros(n_leaves, dtype=np.int)
+        # As we have a heap, nodes[0] is the smallest element
+        these_children = children[-nodes[0] - n_leaves]
+        # Insert the 2 children and remove the largest node
+        heappush(nodes, -these_children[0])
+        heappushpop(nodes, -these_children[1])
+    label = np.zeros(n_leaves, dtype=np.int)
     for i, node in enumerate(nodes):
-        labels[_hc_get_descendent([node], children, n_leaves)] = i
-    return labels
+        label[_hierarchical._hc_get_descendent(-node,
+                                children, n_leaves)] = i
+    return label
 
 
 ###############################################################################
@@ -266,24 +248,18 @@ class Ward(BaseEstimator):
         Copy the connectivity matrix or work inplace.
 
     n_components : int (optional)
-        The number of connected components in the graph defined by the
+        The number of connected components in the graph defined by the \
         connectivity matrix. If not set, it is estimated.
-
-    Methods
-    -------
-    fit:
-        Compute the clustering
 
     Attributes
     ----------
-    children_ : array-like, shape = [n_nodes, 2]
-        List of the children of each nodes.
-        Leaves of the tree do not appear.
+    `children_` : array-like, shape = [n_nodes, 2]
+        List of the children of each nodes.  Leaves of the tree do not appear.
 
-    labels_ : array [n_points]
+    `labels_` : array [n_points]
         cluster labels for each point
 
-    n_leaves_ : int
+    `n_leaves_` : int
         Number of leaves in the hiearchical tree.
 
     """
@@ -351,21 +327,16 @@ class WardAgglomeration(AgglomerationTransform, Ward):
         The number of connected components in the graph defined by the
         connectivity matrix. If not set, it is estimated.
 
-    Methods
-    -------
-    fit:
-        Compute the clustering of features
-
     Attributes
     ----------
-    children_ : array-like, shape = [n_nodes, 2]
+    `children_` : array-like, shape = [n_nodes, 2]
         List of the children of each nodes.
         Leaves of the tree do not appear.
 
-    labels_ : array [n_points]
+    `labels_` : array [n_points]
         cluster labels for each point
 
-    n_leaves_ : int
+    `n_leaves_` : int
         Number of leaves in the hiearchical tree.
 
     """

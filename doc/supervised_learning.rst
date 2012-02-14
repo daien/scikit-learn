@@ -15,5 +15,7 @@ Supervised learning
     modules/pls
     modules/naive_bayes
     modules/tree
+    modules/ensemble
     modules/multiclass
     modules/feature_selection.rst
+    modules/label_propagation.rst

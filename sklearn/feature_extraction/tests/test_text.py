@@ -9,11 +9,11 @@ from sklearn.feature_extraction.text import Vectorizer
 
 from sklearn.grid_search import GridSearchCV
 from sklearn.pipeline import Pipeline
-from sklearn.svm.sparse import LinearSVC as LinearSVC
+from sklearn.svm import LinearSVC
 
 import numpy as np
 from nose.tools import assert_equal, assert_equals, \
-            assert_false, assert_not_equal
+            assert_false, assert_not_equal, assert_true
 from numpy.testing import assert_array_almost_equal
 from numpy.testing import assert_array_equal
 from numpy.testing import assert_raises
@@ -147,6 +147,14 @@ def test_countvectorizer_custom_vocabulary():
     X = vect.transform(JUNK_FOOD_DOCS)
     assert_equal(X.shape[1], len(what_we_like))
 
+    # try again with a dict vocabulary
+    vocab = {"pizza": 0, "beer": 1}
+    vect = CountVectorizer(vocabulary=vocab)
+    vect.fit(JUNK_FOOD_DOCS)
+    assert_equal(vect.vocabulary, vocab)
+    X = vect.transform(JUNK_FOOD_DOCS)
+    assert_equal(X.shape[1], len(what_we_like))
+
 
 def test_countvectorizer_custom_vocabulary_pipeline():
     what_we_like = ["pizza", "beer"]
@@ -163,6 +171,18 @@ def test_fit_countvectorizer_twice():
     X1 = cv.fit_transform(ALL_FOOD_DOCS[:5])
     X2 = cv.fit_transform(ALL_FOOD_DOCS[5:])
     assert_not_equal(X1.shape[1], X2.shape[1])
+
+
+def test_sublinear_tf():
+    X = [[1], [2], [3]]
+    tr = TfidfTransformer(sublinear_tf=True, use_idf=False, norm=None)
+    tfidf = toarray(tr.fit_transform(X))
+    assert_equal(tfidf[0], 1)
+    assert_true(tfidf[1] > tfidf[0])
+    assert_true(tfidf[2] > tfidf[1])
+    assert_true(tfidf[1] < 2)
+    assert_true(tfidf[2] < 3)
+
 
 def test_vectorizer():
     # raw documents as an iterator
@@ -259,11 +279,11 @@ def test_vectorizer_max_df():
     test_data = [u'abc', u'dea']  # the letter a occurs in both strings
     vect = CountVectorizer(CharNGramAnalyzer(min_n=1, max_n=1), max_df=1.0)
     vect.fit(test_data)
-    assert u'a' in vect.vocabulary.keys()
+    assert_true(u'a' in vect.vocabulary.keys())
     assert_equals(len(vect.vocabulary.keys()), 5)
     vect.max_df = 0.5
     vect.fit(test_data)
-    assert u'a' not in vect.vocabulary.keys()  # 'a' is ignored
+    assert_true(u'a' not in vect.vocabulary.keys())  # 'a' is ignored
     assert_equals(len(vect.vocabulary.keys()), 4)  # the others remain
 
 
@@ -274,9 +294,15 @@ def test_vectorizer_inverse_transform():
         transformed_data = vectorizer.fit_transform(data)
         inversed_data = vectorizer.inverse_transform(transformed_data)
         for i, doc in enumerate(data):
-            data_vec = np.sort(np.unique(vectorizer.analyzer.analyze(data[0])))
-            inversed_data_vec = np.sort(np.unique(inversed_data[0]))
-            assert((data_vec == inversed_data_vec).all())
+            terms = np.sort(np.unique(vectorizer.analyzer.analyze(doc)))
+            inversed_terms = np.sort(np.unique(inversed_data[i]))
+            assert_array_equal(terms, inversed_terms)
+
+    # Test that inverse_transform also works with numpy arrays
+    transformed_data = transformed_data.toarray()
+    inversed_data2 = vectorizer.inverse_transform(transformed_data)
+    for terms, terms2 in zip(inversed_data, inversed_data2):
+        assert_array_equal(terms, terms2)
 
 
 def test_dense_vectorizer_pipeline_grid_selection():
@@ -312,8 +338,8 @@ def test_dense_vectorizer_pipeline_grid_selection():
     # on this toy dataset bigram representation which is used in the last of
     # the grid_search is considered the best estimator since they all converge
     # to 100% accuracy models
-    assert_equal(grid_search.best_score, 1.0)
-    best_vectorizer = grid_search.best_estimator.named_steps['vect']
+    assert_equal(grid_search.best_score_, 1.0)
+    best_vectorizer = grid_search.best_estimator_.named_steps['vect']
     assert_equal(best_vectorizer.analyzer.max_n, 1)
 
 
