@@ -1,11 +1,13 @@
 """ Bag-of-Features (BOF) histogram representation
 
- Module to extract vocabularies of "visual words" from local features
- and quantize them to create a BOF (histogram of occurences of visual words)
+Module to extract a "vocabulary" (also called "code book") of local features
+and quantize sets of such local features to create a BOF model
+(histogram of occurences of words from the learned vocabulary).
 
 """
 
 # Authors: Adrien Gaidon <adnothing@gmail.com>
+# License: BSD
 
 
 import numpy as np
@@ -28,7 +30,7 @@ class BagOfFeatures(BaseEstimator):
                whether to L1-normalize the BOFs
 
     sparse_out: boolean, optional, default: True,
-                whether the BOf models are outputed as sparse CSR vectors
+                whether the BOF models are outputed as sparse CSR vectors
 
     Methods
     -------
@@ -39,24 +41,29 @@ class BagOfFeatures(BaseEstimator):
         compute the BOF histograms
 
     predict(X):
-        get the closest visual word for each feature
+        get the closest word for each feature
 
     Attributes
     ----------
     voc_model_: MiniBatchKMeans instance,
                 the model obtained when learning the vocabulary
 
-    vocabulary: array, [n_clusters, n_features]
-                coordinates of the cluster centers
+    vocabulary_: array, [n_clusters, n_features]
+                 coordinates of the cluster centers
+
     """
 
-    def __init__(self, voc_size=1000, normalize=True, sparse_out=True):
+    def __init__(self, voc_size=1000, normalize=True, sparse_out=True,
+                 init='k-means++', max_iter=100, chunk_size=1000):
         self.voc_size = voc_size
         self.normalize = normalize
         self.sparse_out = sparse_out
+        self.init = init
+        self.max_iter = max_iter
+        self.chunk_size = chunk_size
 
     def fit(self, X, y=None):
-        """ Compute the visual vocabulary using MiniBatchKMeans
+        """ Compute the vocabulary using MiniBatchKMeans
 
         Parameters
         ----------
@@ -66,16 +73,18 @@ class BagOfFeatures(BaseEstimator):
         Returns
         -------
         self
+
         """
-        self.voc_model_ = MiniBatchKMeans(k=self.voc_size, init='k-means++',
-                                          max_iter=100, chunk_size=1000,
-                                          compute_labels=False)
-        self.voc_model_.fit(X)
+        self.voc_model_ = MiniBatchKMeans(k=self.voc_size,
+                                          init=self.init,
+                                          max_iter=self.max_iter,
+                                          chunk_size=self.chunk_size,
+                                          compute_labels=False).fit(X)
         self.vocabulary_ = self.voc_model_.cluster_centers_
         return self
 
     def predict(self, X, y=None):
-        """Predict the closest visual word each sample in X corresponds to.
+        """Predict the closest word each sample in X corresponds to.
 
         Parameters
         ----------
@@ -86,9 +95,10 @@ class BagOfFeatures(BaseEstimator):
         -------
         Y : array, shape [n_samples,]
             Index of the closest center each sample belongs to.
+
         """
         if not hasattr(self, "voc_model_"):
-            raise AttributeError("Model has not been trained yet. ")
+            raise AttributeError("Model has not been trained yet.")
         return self.voc_model_.predict(X)
 
     def transform(self, X, y=None):
@@ -102,10 +112,11 @@ class BagOfFeatures(BaseEstimator):
         Returns
         -------
         b: {array-like, sparse matrix}, shape [voc_size, ]
-           BOF histogram counting the occurences of visual words
+           BOF histogram counting the occurences of words
            it is L1-normalized if (self.normalize == True)
+
         """
-        # assign each feature to its closest visual word
+        # assign each feature to its closest word
         labels = self.predict(X)
         # build the histogram
         b = np.bincount(labels, minlength=self.voc_size).squeeze().astype(np.float)
