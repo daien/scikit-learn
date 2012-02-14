@@ -1085,6 +1085,7 @@ class MiniBatchKMeans(KMeans):
         self.batch_size = batch_size
         self.compute_labels = compute_labels
         self.init_size = init_size
+        # self.init_size = 3 * batch_size if init_size is None else init_size
         self.reassignment_ratio = reassignment_ratio
 
     def fit(self, X, y=None):
