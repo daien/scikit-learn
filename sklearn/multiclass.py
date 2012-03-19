@@ -194,9 +194,8 @@ class OneVsRestClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
         -------
         self
         """
-        self.estimators_, self.label_binarizer_ = fit_ovr(
-            self.estimator, X, y, n_jobs=self.n_jobs, **fit_params
-        )
+        self.estimators_, self.label_binarizer_ = \
+                fit_ovr(self.estimator, X, y, **fit_params)
         return self
 
     def _check_is_fitted(self):
@@ -336,15 +335,17 @@ def fit_ovo_precomp_kernel(estimator, X, y, **fit_params):
     assert X.shape[0] == X.shape[1], "X should be a square kernel matrix"
     classes = np.unique(y)
     n_classes = classes.shape[0]
-    estims_idxs = [fit_ovo_precomp_kernel_binary(estimator, X, y, classes[i], classes[j], **fit_params)
-                    for i in range(n_classes) for j in range(i + 1, n_classes)]
+    estims_idxs = [
+        fit_ovo_precomp_kernel_binary(
+            estimator, X, y, classes[i], classes[j], **fit_params)
+        for i in range(n_classes) for j in range(i + 1, n_classes)]
     estimators = [e for e, _ in estims_idxs]
     sub_idxs = [inds for _, inds in estims_idxs]
     return estimators, classes, sub_idxs
 
 
 def predict_ovo_precomp_kernel(estimators, classes, X, sub_idxs):
-    """Make predictions using the one-vs-one strategy when X is a kernel matrix."""
+    """Predict using the one-vs-one strategy when X is a kernel matrix."""
     n_samples = X.shape[0]
     n_classes = classes.shape[0]
     votes = np.zeros((n_samples, n_classes))
@@ -403,8 +404,9 @@ class OneVsOneClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
             innermost_estimator = estimator.estimator
         else:
             innermost_estimator = estimator
-        self.precomputed_kernel = getattr(innermost_estimator, 'kernel', '') == 'precomputed' \
-                and not hasattr(innermost_estimator, 'kernel_function')
+        kernel = getattr(innermost_estimator, 'kernel', '')
+        self.precomputed_kernel = kernel == 'precomputed' and \
+                not hasattr(innermost_estimator, 'kernel_function')
 
     def fit(self, X, y, **fit_params):
         """Fit underlying estimators.
@@ -423,9 +425,12 @@ class OneVsOneClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
         """
         if self.precomputed_kernel:
             # X is a precomputed square kernel matrix
-            self.estimators_, self.classes_, self.sub_idxs_ = fit_ovo_precomp_kernel(self.estimator, X, y, **fit_params)
+            self.estimators_, self.classes_, self.sub_idxs_ = \
+                    fit_ovo_precomp_kernel(self.estimator, X, y, **fit_params)
         else:
-            self.estimators_, self.classes_ = fit_ovo(self.estimator, X, y, n_jobs=self.n_jobs, **fit_params)
+            self.estimators_, self.classes_ = \
+                    fit_ovo(self.estimator, X, y, n_jobs=self.n_jobs,
+                            **fit_params)
         return self
 
     def predict(self, X):
@@ -445,12 +450,14 @@ class OneVsOneClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin):
             raise ValueError("The object hasn't been fitted yet!")
 
         if self.precomputed_kernel:
-            return predict_ovo_precomp_kernel(self.estimators_, self.classes_, X, self.sub_idxs_)
+            return predict_ovo_precomp_kernel(
+                self.estimators_, self.classes_, X, self.sub_idxs_)
         else:
             return predict_ovo(self.estimators_, self.classes_, X)
 
 
-def fit_ecoc(estimator, X, y, code_size=1.5, random_state=None, n_jobs=1, **fit_params):
+def fit_ecoc(estimator, X, y, code_size=1.5, random_state=None, n_jobs=1,
+             **fit_params):
     """
     Fit an error-correcting output-code strategy.
 
